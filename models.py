@@ -15,6 +15,7 @@ __author__ = 'wesc+api@google.com (Wesley Chun)'
 import httplib
 import endpoints
 from protorpc import messages
+from protorpc import message_types
 from google.appengine.ext import ndb
 
 class ConflictException(endpoints.ServiceException):
@@ -126,8 +127,8 @@ class SessionForm(messages.Message):
     conference_id   = messages.StringField(3)
     speakers        = messages.StringField(4, repeated=True)
     duration        = messages.IntegerField(5, variant=messages.Variant.INT32)
-    datetime        = messages.DateTimeField(6)
-    session_type    = ndb.EnumField('SessionType', 7)
+    datetime        = message_types.DateTimeField(6)
+    session_type    = messages.EnumField('SessionType', 7)
 
 class SessionType(messages.Enum):
     NOT_SPECIFIED = 1
