@@ -38,9 +38,6 @@ from models import ConferenceQueryForms
 from models import TeeShirtSize
 
 from settings import WEB_CLIENT_ID
-from settings import ANDROID_CLIENT_ID
-from settings import IOS_CLIENT_ID
-from settings import ANDROID_AUDIENCE
 
 from utils import getUserId
 
