@@ -143,7 +143,17 @@ class SessionForm(messages.Message):
     session_type    = messages.EnumField('SessionType', 7)
     websafeConferenceKey = messages.StringField(8)
 
+class Speaker(ndb.Model):
+    """Speaker - Speaker object"""
+    firstName = ndb.StringProperty(required=True)
+    lastName  = ndb.StringProperty(required=True)
+    institution = ndb.StringProperty()
 
+class SpeakerForm(messages.Message):
+    """SpeakerForm - Speaker protoRPC message class"""
+    firstName = messages.StringField(1)
+    lastName = messages.StringField(2)
+    institution = messages.StringField(3)
 
 # class ConferenceForms(messages.Message):
 #     """ConferenceForms -- multiple Conference outbound form message"""

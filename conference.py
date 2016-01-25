@@ -39,6 +39,9 @@ from models import TeeShirtSize
 from models import Session
 from models import SessionForm
 from models import SessionType
+from models import Speaker
+from models import SpeakerForm
+
 
 from settings import WEB_CLIENT_ID, ANDROID_AUDIENCE, API_EXPLORER_CLIENT_ID, ANDROID_CLIENT_ID, IOS_CLIENT_ID
 
@@ -525,6 +528,46 @@ class ConferenceApi(remote.Service):
     def createSession(self, request):
         """Create new session."""
         return self._createSessionObject(request)
+
+# ------ Speaker code -------
+
+    def _createSpeakerObject(self, request):
+
+        # check user is logged
+        user = endpoints.get_current_user()
+        if not user:
+            raise endpoints.UnauthorizedException('Authorization required')
+        
+        # check all required fields are provided by user
+        if not request.firstName or not request.lastName or not request.institution:
+            raise endpoints.BadRequestException("All fields are required")
+
+        # convert data from request into dict
+        data = {field.name: getattr(request, field.name) for field in request.all_fields()}
+
+        # allocate key based on unique numerical ID
+        s_id = Speaker.allocate_ids(size=1)[0]
+        spk_key = ndb.Key(Speaker, s_id)
+        data['key'] = spk_key
+
+        # Save into Datastore
+        Speaker(**data).put()
+        return request
+
+    def _copySpeakerToForm(self, spk):
+        ''' Copy Speaker object data into Speaker protorpc form'''    
+        spkf = SpeakerForm()
+        for field in spkf.all_fields():
+            if hasattr(spk, field.name):
+                setattr(spkf, field.name, getattr(spk, field.name))
+        spkf.check_initialized()
+        return spkf        
+
+    @endpoints.method(SpeakerForm, SpeakerForm, path='newSpeaker',
+            http_method='POST', name='createSpeaker')
+    def createSpeaker(self, request):
+        """Create new speaker."""
+        return self._createSpeakerObject(request)
 
 # - - - Registration - - - - - - - - - - - - - - - - - - - -
 
