@@ -38,9 +38,11 @@ from models import ConferenceQueryForms
 from models import TeeShirtSize
 from models import Session
 from models import SessionForm
+from models import SessionForms
 from models import SessionType
 from models import Speaker
 from models import SpeakerForm
+from models import SpeakerForms
 
 
 from settings import WEB_CLIENT_ID, ANDROID_AUDIENCE, API_EXPLORER_CLIENT_ID, ANDROID_CLIENT_ID, IOS_CLIENT_ID
@@ -515,11 +517,12 @@ class ConferenceApi(remote.Service):
             if hasattr(sess, field.name):
                 # convert date and time to string; just copy others
                 if field.name.endswith('date') or field.name.endswith('Time') :
-                    setattr(cf, field.name, str(getattr(conf, field.name)))
+                    setattr(sf, field.name, str(getattr(sess, field.name)))
                 elif field.name == 'session_type':
-                    setattr(pf, field.name, getattr(SessionType, getattr(prof, field.name)))
+                    stype = getattr(sess, field.name)
+                    setattr(sf, field.name, stype) 
                 else:
-                    setattr(cf, field.name, getattr(conf, field.name))
+                    setattr(sf, field.name, getattr(sess, field.name))
         sf.check_initialized()
         return sf
 
@@ -528,6 +531,19 @@ class ConferenceApi(remote.Service):
     def createSession(self, request):
         """Create new session."""
         return self._createSessionObject(request)
+
+    @endpoints.method(CONF_GET_REQUEST, SessionForms, path='getConferenceSessions',
+            http_method='GET', name='getConferenceSessions')
+    def getConferenceSessions(self, request):
+        """Get all sessions in a given conference."""
+        conf = ndb.Key(urlsafe=request.websafeConferenceKey).get()
+        if not conf:
+            raise endpoints.NotFoundException(
+                'No conference found with key: %s' % request.websafeConferenceKey)
+        q = Session.query()
+        q = q.filter(Session.websafeConferenceKey == request.websafeConferenceKey)
+        return SessionForms(items= [self._copySessionToForm(cf) for cf in q])
+
 
 # ------ Speaker code -------
 
@@ -560,6 +576,7 @@ class ConferenceApi(remote.Service):
         for field in spkf.all_fields():
             if hasattr(spk, field.name):
                 setattr(spkf, field.name, getattr(spk, field.name))
+        setattr(spkf, 'websafeKey', spk.key.urlsafe())
         spkf.check_initialized()
         return spkf        
 
@@ -568,6 +585,13 @@ class ConferenceApi(remote.Service):
     def createSpeaker(self, request):
         """Create new speaker."""
         return self._createSpeakerObject(request)
+
+    @endpoints.method(message_types.VoidMessage, SpeakerForms, path='listSpeakers',
+            http_method='GET', name='listSpeakers')
+    def listSpeakers(self, request):
+        """List all speakers."""
+        q = Speaker.query()
+        return SpeakerForms(items=[self._copySpeakerToForm(spk) for spk in q])  
 
 # - - - Registration - - - - - - - - - - - - - - - - - - - -
 

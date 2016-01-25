@@ -143,6 +143,10 @@ class SessionForm(messages.Message):
     session_type    = messages.EnumField('SessionType', 7)
     websafeConferenceKey = messages.StringField(8)
 
+class SessionForms(messages.Message):
+    """SessionForms -- multiple Session outbound form message"""
+    items = messages.MessageField(SessionForm, 1, repeated=True)
+
 class Speaker(ndb.Model):
     """Speaker - Speaker object"""
     firstName = ndb.StringProperty(required=True)
@@ -154,7 +158,8 @@ class SpeakerForm(messages.Message):
     firstName = messages.StringField(1)
     lastName = messages.StringField(2)
     institution = messages.StringField(3)
+    websafeKey = messages.StringField(4)
 
-# class ConferenceForms(messages.Message):
-#     """ConferenceForms -- multiple Conference outbound form message"""
-#     items = messages.MessageField(ConferenceForm, 1, repeated=True)
+class SpeakerForms(messages.Message):
+    """SpeakersForms -- multiple Speaker outbound form message"""
+    items = messages.MessageField(SpeakerForm, 1, repeated=True)
