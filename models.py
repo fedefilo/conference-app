@@ -17,6 +17,7 @@ import endpoints
 from protorpc import messages
 from protorpc import message_types
 from google.appengine.ext import ndb
+from google.appengine.ext.ndb import msgprop
 
 class ConflictException(endpoints.ServiceException):
     """ConflictException -- exception mapped to HTTP 409 response"""
@@ -109,26 +110,7 @@ class ConferenceQueryForms(messages.Message):
     """ConferenceQueryForms -- multiple ConferenceQueryForm inbound form message"""
     filters = messages.MessageField(ConferenceQueryForm, 1, repeated=True)
 
-class Session(ndb.Model):
-    """Session -- Session object"""
-    name            = ndb.StringProperty(required=True)
-    highlights      = ndb.StringProperty()
-    conference_id   = ndb.StringProperty()
-    speakers        = ndb.StringProperty(repeated=True)
-    duration        = ndb.IntegerProperty()
-    date            = ndb.DateProperty()
-    time            = ndb.TimeProperty()
-    session_type    = ndb.StringProperty()
-
-class SessionForm(messages.Message):
-    """SessionForm -- Session outbound form message"""
-    name            = messages.StringField(1)
-    highlights      = messages.StringField(2)
-    conference_id   = messages.StringField(3)
-    speakers        = messages.StringField(4, repeated=True)
-    duration        = messages.IntegerField(5, variant=messages.Variant.INT32)
-    datetime        = message_types.DateTimeField(6)
-    session_type    = messages.EnumField('SessionType', 7)
+# Classes definition for session
 
 class SessionType(messages.Enum):
     NOT_SPECIFIED = 1
@@ -136,6 +118,32 @@ class SessionType(messages.Enum):
     KEYNOTE = 3
     WORKSHOP = 4
     THEMATIC_SESSION = 5
+
+
+class Session(ndb.Model):
+    """Session -- Session object"""
+    name            = ndb.StringProperty(required=True)
+    highlights      = ndb.StringProperty()
+    speakers        = ndb.StringProperty(repeated=True)
+    duration        = ndb.IntegerProperty()
+    date            = ndb.DateProperty()
+    startTime       = ndb.TimeProperty()
+    #session_type    = ndb.StringProperty(default='LECTURE')
+    session_type    = msgprop.EnumProperty(SessionType, indexed=True)
+    websafeConferenceKey = ndb.StringProperty()
+
+class SessionForm(messages.Message):
+    """SessionForm -- Session outbound form message"""
+    name            = messages.StringField(1)
+    highlights      = messages.StringField(2)
+    speakers        = messages.StringField(3, repeated=True)
+    duration        = messages.IntegerField(4, variant=messages.Variant.INT32)
+    date            = messages.StringField(5)
+    startTime       = messages.StringField(6)
+    session_type    = messages.EnumField('SessionType', 7)
+    websafeConferenceKey = messages.StringField(8)
+
+
 
 # class ConferenceForms(messages.Message):
 #     """ConferenceForms -- multiple Conference outbound form message"""

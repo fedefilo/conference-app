@@ -58,6 +58,15 @@ DEFAULTS = {
     "topics": [ "Default", "Topic" ],
 }
 
+DEAFULTS_SESSION = {
+    "highlights": "No highlights",
+    "speakers": ["Mr. Nobody", "Mr. Everybody"],
+    "duration": 1,
+    "date": "2000-12-12",
+    "startTime": "12:00",
+}
+
+
 OPERATORS = {
             'EQ':   '=',
             'GT':   '>',
@@ -444,67 +453,78 @@ class ConferenceApi(remote.Service):
 
 
     def _createSessionObject(self, request):
-        """Create or update Conference object, returning ConferenceForm/request."""
+        """Create Session object, returning SessionForm/request."""
         # preload necessary data items
         user = endpoints.get_current_user()
         if not user:
             raise endpoints.UnauthorizedException('Authorization required')
         user_id = getUserId(user)
-
+        conf = ndb.Key(urlsafe=request.websafeConferenceKey).get()
+        if user_id != conf.organizerUserId:
+            raise endpoints.UnauthorizedException('Only the creator of the conference can add sessions')
+        
+        # get Conference object from request; bail if not found
+        if not conf:
+            raise endpoints.NotFoundException(
+                'No conference found with key: %s' % request.websafeConferenceKey)
+        
         if not request.name:
-            raise endpoints.BadRequestException("Conference 'name' field required")
+            raise endpoints.BadRequestException("Session 'name' field required")
 
-        # copy ConferenceForm/ProtoRPC Message into dict
+        # copy SessionForm/ProtoRPC Message into dict
         data = {field.name: getattr(request, field.name) for field in request.all_fields()}
-        del data['websafeKey']
-        del data['organizerDisplayName']
 
         # add default values for those missing (both data model & outbound Message)
-        for df in DEFAULTS:
+        for df in DEAFULTS_SESSION:
             if data[df] in (None, []):
-                data[df] = DEFAULTS[df]
-                setattr(request, df, DEFAULTS[df])
+                data[df] = DEAFULTS_SESSION[df]
+                setattr(request, df, DEAFULTS_SESSION[df])
 
         # convert dates from strings to Date objects; set month based on start_date
-        if data['startDate']:
-            data['startDate'] = datetime.strptime(data['startDate'][:10], "%Y-%m-%d").date()
-            data['month'] = data['startDate'].month
-        else:
-            data['month'] = 0
-        if data['endDate']:
-            data['endDate'] = datetime.strptime(data['endDate'][:10], "%Y-%m-%d").date()
+        if data['date']:
+            data['date'] = datetime.strptime(data['date'][:10], "%Y-%m-%d").date()
+        
+        # convert time string into time object
+        if data['startTime']:
+            data['startTime'] = datetime.strptime(data['startTime'], '%H:%M').time()
+        
+        # add conference Id in data
+        #data['conference_id'] = conf.key.id()
 
         # generate Profile Key based on user ID and Conference
         # ID based on Profile key get Conference key from ID
-        p_key = ndb.Key(Profile, user_id)
-        c_id = Conference.allocate_ids(size=1, parent=p_key)[0]
-        c_key = ndb.Key(Conference, c_id, parent=p_key)
-        data['key'] = c_key
-        data['organizerUserId'] = request.organizerUserId = user_id
+        #data['organizerUserId'] = user_id
 
+        # Set conference as Session parent
+        data['parent'] = conf.key
+ 
         # create Conference, send email to organizer confirming
         # creation of Conference & return (modified) ConferenceForm
-        Conference(**data).put()
+        Session(**data).put()
         return request
 
 
 
-    def _copyConferenceToForm(self, conf, displayName):
-        """Copy relevant fields from Conference to ConferenceForm."""
-        cf = ConferenceForm()
-        for field in cf.all_fields():
-            if hasattr(conf, field.name):
-                # convert Date to date string; just copy others
-                if field.name.endswith('Date'):
+    def _copySessionToForm(self, sess):
+        """Copy relevant fields from Session to SessionForm."""
+        sf = SessionForm()
+        for field in sf.all_fields():
+            if hasattr(sess, field.name):
+                # convert date and time to string; just copy others
+                if field.name.endswith('date') or field.name.endswith('Time') :
                     setattr(cf, field.name, str(getattr(conf, field.name)))
+                elif field.name == 'session_type':
+                    setattr(pf, field.name, getattr(SessionType, getattr(prof, field.name)))
                 else:
                     setattr(cf, field.name, getattr(conf, field.name))
-            elif field.name == "websafeKey":
-                setattr(cf, field.name, conf.key.urlsafe())
-        if displayName:
-            setattr(cf, 'organizerDisplayName', displayName)
-        cf.check_initialized()
-        return cf
+        sf.check_initialized()
+        return sf
+
+    @endpoints.method(SessionForm, SessionForm, path='newSession',
+            http_method='POST', name='createSession')
+    def createSession(self, request):
+        """Create new session."""
+        return self._createSessionObject(request)
 
 # - - - Registration - - - - - - - - - - - - - - - - - - - -
 
