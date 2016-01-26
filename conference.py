@@ -98,6 +98,17 @@ CONF_POST_REQUEST = endpoints.ResourceContainer(
     websafeConferenceKey=messages.StringField(1),
 )
 
+CONF_AND_TYPE_REQUEST = endpoints.ResourceContainer(
+    message_types.VoidMessage,
+    websafeConferenceKey=messages.StringField(1),
+    session_type=messages.EnumField(SessionType, 2),
+    )
+
+SPK_GET_REQUEST = endpoints.ResourceContainer(
+    message_types.VoidMessage,
+    websafeSpeakerKey=messages.StringField(1),
+    )
+
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 
@@ -544,6 +555,26 @@ class ConferenceApi(remote.Service):
         q = q.filter(Session.websafeConferenceKey == request.websafeConferenceKey)
         return SessionForms(items= [self._copySessionToForm(cf) for cf in q])
 
+    @endpoints.method(CONF_AND_TYPE_REQUEST, SessionForms, path='getConferenceSessionsByType',
+            http_method='GET', name='getConferenceSessionsByType')
+    def getConferenceSessionsByType(self, request):
+        """Get all sessions in a given conference that match a prticular type."""
+        conf = ndb.Key(urlsafe=request.websafeConferenceKey).get()
+        if not conf:
+            raise endpoints.NotFoundException(
+                'No conference found with key: %s' % request.websafeConferenceKey)
+        q = Session.query()
+        q = q.filter(Session.websafeConferenceKey == request.websafeConferenceKey)
+        q = q.filter(Session.session_type == request.session_type)
+        return SessionForms(items= [self._copySessionToForm(ss) for ss in q])
+
+    @endpoints.method(SPK_GET_REQUEST, SessionForms, path='getConferenceSessionsBySpeaker',
+            http_method='GET', name='getConferenceSessionsBySpeaker')
+    def getConferenceSessionsBySpeaker(self, request):
+        """Get all sessions in which a particular speaker is featured across all conferences."""
+        q = Session.query()
+        q = q.filter(request.websafeSpeakerKey == Session.speakers)
+        return SessionForms(items= [self._copySessionToForm(ss) for ss in q])
 
 # ------ Speaker code -------
 
