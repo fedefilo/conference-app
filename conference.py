@@ -551,8 +551,11 @@ class ConferenceApi(remote.Service):
         if not conf:
             raise endpoints.NotFoundException(
                 'No conference found with key: %s' % request.websafeConferenceKey)
-        q = Session.query()
-        q = q.filter(Session.websafeConferenceKey == request.websafeConferenceKey)
+        q = Session.query(ancestor=conf.key)
+        #q = Session.query()
+        #q = q.filter(Session.websafeConferenceKey == request.websafeConferenceKey)
+        #q = q.ancestor(ndb.Key(urlsafe=request.websafeConferenceKey))
+        
         return SessionForms(items= [self._copySessionToForm(cf) for cf in q])
 
     @endpoints.method(CONF_AND_TYPE_REQUEST, SessionForms, path='getConferenceSessionsByType',
@@ -563,8 +566,10 @@ class ConferenceApi(remote.Service):
         if not conf:
             raise endpoints.NotFoundException(
                 'No conference found with key: %s' % request.websafeConferenceKey)
-        q = Session.query()
-        q = q.filter(Session.websafeConferenceKey == request.websafeConferenceKey)
+        #q = Session.query()
+        #q = Session.query(ancestor=c_key)
+        #q = q.ancestor(conf.key())
+        q = Session.query(ancestor=conf.key)
         q = q.filter(Session.session_type == request.session_type)
         return SessionForms(items= [self._copySessionToForm(ss) for ss in q])
 
