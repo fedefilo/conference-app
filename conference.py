@@ -43,7 +43,7 @@ from models import SessionType
 from models import Speaker
 from models import SpeakerForm
 from models import SpeakerForms
-
+from models import StringMessageRepeated
 
 from settings import WEB_CLIENT_ID, ANDROID_AUDIENCE, API_EXPLORER_CLIENT_ID, ANDROID_CLIENT_ID, IOS_CLIENT_ID
 
@@ -108,6 +108,15 @@ SPK_GET_REQUEST = endpoints.ResourceContainer(
     message_types.VoidMessage,
     websafeSpeakerKey=messages.StringField(1),
     )
+
+SPK_SESS_REQUEST = endpoints.ResourceContainer(
+    websafeSessionKey = messages.StringField(1),
+    websafeSpeakerKey = messages.StringField(2),
+    )
+
+SESS_REQUEST = endpoints.ResourceContainer(
+    websafeSessionKey=messages.StringField(1),
+)
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -581,6 +590,51 @@ class ConferenceApi(remote.Service):
         q = q.filter(request.websafeSpeakerKey == Session.speakers)
         return SessionForms(items= [self._copySessionToForm(ss) for ss in q])
 
+# ---------------- Session Wishlist -----------------------
+
+
+    @endpoints.method(SESS_REQUEST, ProfileForm, path='addSessionToWishlist',
+        http_method='POST', name='addSessionToWishlist')
+    def addSessionToWishlist(self, request):
+        """Adds a session to the wishlist of the logged user"""
+        profile = self._getProfileFromUser()
+        if request.websafeSessionKey in profile.wishlist:
+            raise endpoints.BadRequestException("Session already in wishlist")
+        conf = ndb.Key(urlsafe=request.websafeSessionKey).parent().get()
+        if not conf:
+            raise endpoints.NotFoundException('Please check the sessionkey')
+        if conf.key.urlsafe() not in profile.conferenceKeysToAttend:
+            raise endpoints.BadRequestException("You have to register for the conference first")
+        profile.wishlist.append(request.websafeSessionKey)
+        profile.put()
+        return self._copyProfileToForm(profile) 
+
+    @endpoints.method(message_types.VoidMessage, StringMessageRepeated, path='getSessionsInWishlist',
+        http_method='POST', name='getSessionsInWishlist')
+    def getSessionsInWishlist(self, request):
+        """Returns the sessions currently in the wishlist of the logged user"""
+        profile = self._getProfileFromUser()
+        if not profile.wishlist:
+            raise endpoints.BadRequestException("No sessions in wishlist")
+        session_list = []
+        for sess in profile.wishlist:
+            sm = StringMessage()
+            setattr(sm, 'data', sess)
+            session_list.append(sm)
+        return StringMessageRepeated(items=session_list)
+  
+    @endpoints.method(SESS_REQUEST, ProfileForm, path='deleteSessionInWishlist',
+        http_method='DELETE', name='deleteSessionInWishlist')
+    def deleteSessionInWishlist(self, request):
+        """Delete session from users' wishlist"""
+        profile = self._getProfileFromUser()
+        if request.websafeSessionKey not in profile.wishlist:
+            raise endpoints.BadRequestException("Session not in wishlist")
+        profile.wishlist.remove(request.websafeSessionKey)
+        profile.put()
+        return self._copyProfileToForm(profile)
+
+
 # ------ Speaker code -------
 
     def _createSpeakerObject(self, request):
@@ -596,6 +650,9 @@ class ConferenceApi(remote.Service):
 
         # convert data from request into dict
         data = {field.name: getattr(request, field.name) for field in request.all_fields()}
+
+        # delete websafekey field that is not used at this stage
+        del data['websafeKey']
 
         # allocate key based on unique numerical ID
         s_id = Speaker.allocate_ids(size=1)[0]
@@ -628,6 +685,26 @@ class ConferenceApi(remote.Service):
         """List all speakers."""
         q = Speaker.query()
         return SpeakerForms(items=[self._copySpeakerToForm(spk) for spk in q])  
+
+
+    @endpoints.method(SPK_SESS_REQUEST, SessionForm, path='addSpeakerToSession',
+            http_method='POST', name='addSpeakerToSession')
+    def addSpeakerToSession(self, request):
+        """Add Speaker to Session."""
+        sess = ndb.Key(urlsafe=request.websafeSessionKey).get()
+        spk = ndb.Key(urlsafe=request.websafeSpeakerKey).get()
+        if not sess:
+            raise endpoints.NotFoundException(
+                'No session found with key: %s' % request.websafeSessionKey)
+        if not spk:
+            raise endpoints.NotFoundException(
+                'No speaker found with key: %s' % request.websafeSpeakerKey)
+        if request.websafeSpeakerKey in sess.speakers:
+            raise endpoints.BadRequestException(
+                'Speaker already in session')            
+        sess.speakers.append(request.websafeSpeakerKey)
+        sess.put()
+        return self._copySessionToForm(sess)
 
 # - - - Registration - - - - - - - - - - - - - - - - - - - -
 

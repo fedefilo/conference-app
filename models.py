@@ -29,6 +29,7 @@ class Profile(ndb.Model):
     mainEmail = ndb.StringProperty()
     teeShirtSize = ndb.StringProperty(default='NOT_SPECIFIED')
     conferenceKeysToAttend = ndb.StringProperty(repeated=True)
+    wishlist = ndb.StringProperty(repeated=True)
 
 class ProfileMiniForm(messages.Message):
     """ProfileMiniForm -- update Profile form message"""
@@ -41,6 +42,7 @@ class ProfileForm(messages.Message):
     mainEmail = messages.StringField(2)
     teeShirtSize = messages.EnumField('TeeShirtSize', 3)
     conferenceKeysToAttend = messages.StringField(4, repeated=True)
+    wishlist = messages.StringField(5, repeated=True)
 
 class StringMessage(messages.Message):
     """StringMessage-- outbound (single) string message"""
@@ -163,3 +165,7 @@ class SpeakerForm(messages.Message):
 class SpeakerForms(messages.Message):
     """SpeakersForms -- multiple Speaker outbound form message"""
     items = messages.MessageField(SpeakerForm, 1, repeated=True)
+
+class StringMessageRepeated(messages.Message):
+    """ Multiple Strings Message """
+    items = messages.MessageField(StringMessage, 1, repeated=True)
