@@ -118,6 +118,11 @@ SESS_REQUEST = endpoints.ResourceContainer(
     websafeSessionKey=messages.StringField(1),
 )
 
+TYPE_AND_SIZE = endpoints.ResourceContainer(
+    session_type = messages.EnumField(SessionType, 1),
+    size = messages.IntegerField(2, variant=messages.Variant.INT32),
+)
+
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 
@@ -705,6 +710,71 @@ class ConferenceApi(remote.Service):
         sess.speakers.append(request.websafeSpeakerKey)
         sess.put()
         return self._copySessionToForm(sess)
+
+# ------ Additional Queries (task 3) ---------------------
+
+    @endpoints.method(message_types.VoidMessage, SpeakerForms, path='listSpeakersInWishlist',
+            http_method='GET', name='listSpeakersInWishlist')
+    def listSpeakersInWishlist(self, request):
+        """List all speakers that are featured in the sessions currently in the logged user's wishlist."""
+        profile = self._getProfileFromUser()
+        if not profile.wishlist:
+            raise endpoints.BadRequestException("No sessions in wishlist")
+        speaker_list = []
+        for sess_key in profile.wishlist:
+            session = ndb.Key(urlsafe=sess_key).get()
+            for speaker_key in session.speakers:
+                spk_obj = ndb.Key(urlsafe=speaker_key).get()
+                if spk_obj not in speaker_list:
+                    speaker_list.append(spk_obj)
+        return  SpeakerForms(items=[self._copySpeakerToForm(spk) for spk in speaker_list])
+
+    @endpoints.method(message_types.VoidMessage, SpeakerForms, path='popularSpeakers', http_method='POST', 
+        name='popularSpeakers')
+    def popularSpeakers(self, request):
+        """ List speakers participating in two or more conferences """ 
+        q = Speaker.query()
+
+        spk_participations = {}
+        for spk in q:
+            spk_participations[spk.key.urlsafe()] = 0
+
+        q = Session.query()
+        for sess in q:
+            for speaker in sess.speakers:
+                spk_participations[speaker] += 1
+
+        popularSpeakers = []
+        for (speaker, appeareances) in spk_participations.items():
+            if appeareances >= 2:
+                popularSpeakers.append(ndb.Key(urlsafe=speaker).get())
+        return SpeakerForms(items=[self._copySpeakerToForm(spk) for spk in popularSpeakers])
+
+    @endpoints.method(message_types.VoidMessage, ConferenceForms, path='successfulConferences', 
+        http_method='POST', name='successfulConferences')
+    def successfulConferences(self, request):
+        """ List conferences with more than 95 percent of its seats occupied"""
+        q = Conference.query()
+        conf_list = []
+        for conf in q:
+            fivepercent = 0.05 * conf.maxAttendees
+            if conf.seatsAvailable < fivepercent:
+                conf_list.append(conf)
+        return ConferenceForms(items=[self._copyConferenceToForm(conf, '') for conf in conf_list])
+
+    @endpoints.method(CONF_GET_REQUEST, SessionForms, path='early-non-workshop/{websafeConferenceKey}', 
+        http_method='GET', name='early-non-workshop')
+    def earlynonworkshop(self, request):
+        q = Session.query()
+        q = q.filter(Session.websafeConferenceKey==request.websafeConferenceKey)
+        q = q.filter(Session.startTime < datetime.strptime("19:00", '%H:%M').time())
+        results = []
+        for sess in q:
+            if sess.session_type != SessionType('WORKSHOP'):
+                results.append(sess)
+
+        return SessionForms(items=[self._copySessionToForm(sess) for sess in results])
+
 
 # - - - Registration - - - - - - - - - - - - - - - - - - - -
 
