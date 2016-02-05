@@ -526,11 +526,21 @@ class ConferenceApi(remote.Service):
         #data['organizerUserId'] = user_id
 
         # Set conference as Session parent
-        data['parent'] = conf.key
- 
-        # create Conference, send email to organizer confirming
-        # creation of Conference & return (modified) ConferenceForm
+        #data['parent'] = conf.key
+
+        # allocate key based on unique numerical ID
+        s_id = Session.allocate_ids(size=1, parent=conf.key)[0]
+        s_key = ndb.Key(Session, s_id, parent=conf.key)
+        safekey = s_key.urlsafe()
+        data['key'] = s_key
+        data['websafeSessionKey'] = safekey
+        # create Session
         Session(**data).put()
+
+               
+        taskqueue.add(params={'sess_key': data['websafeSessionKey']},
+            url='/tasks/featured_speaker'
+        )
         return request
 
 
@@ -732,7 +742,7 @@ class ConferenceApi(remote.Service):
     @endpoints.method(message_types.VoidMessage, SpeakerForms, path='popularSpeakers', http_method='POST', 
         name='popularSpeakers')
     def popularSpeakers(self, request):
-        """ List speakers participating in two or more conferences """ 
+        """ List speakers participating in two or more sessions across all conferences """ 
         q = Speaker.query()
 
         spk_participations = {}
@@ -774,6 +784,58 @@ class ConferenceApi(remote.Service):
                 results.append(sess)
 
         return SessionForms(items=[self._copySessionToForm(sess) for sess in results])
+
+# ----------------- Task 4 - Add a task ------------------------------
+
+
+    @staticmethod
+    def _cacheFeaturedSpeaker(sess_key):
+        """Query DB for featured speakers & assign results to memcache."""
+
+        # get session object
+        ses_obj = ndb.Key(urlsafe=sess_key).get()
+
+        # get conference object
+        conf = ses_obj.key.parent().get()
+
+        # get all sessions in the conference
+        sessions = Session.query(ancestor=conf.key)
+
+        # here I'll store the message to be set
+        memcache_message = ''
+        
+        # for each speaker in participating in the conference, check if featured in other sessions in the same conf
+        for newspeaker in ses_obj.speakers:
+            # check if speaker key is present more than one time in all the sessions
+            counter = 0
+            session_names = []
+            for session in sessions:
+                if newspeaker in session.speakers:
+                    counter += 1
+                    session_names.append(session.name)                  
+
+            # has to be 2 or more, since the recently added session would also be counted
+            if counter > 1:
+                # get speaker object
+                spk_obj = ndb.Key(urlsafe=newspeaker).get()
+                fullname = spk_obj.firstName + " " + spk_obj.lastName + " (" + spk_obj.institution + " )"
+                featuredsessions = ', '.join(session_names)
+                addedmessage = "Speaker " + fullname + "is featured in the following sessions: " + featuredsessions
+                memcache_message += addedmessage
+            memcache_message += '\n'
+        # set announcement in memcache
+        memcache.set("FEATURED SPEAKERS", memcache_message)
+        return memcache_message
+
+
+    @endpoints.method(message_types.VoidMessage, StringMessage,
+            path='getFeaturedSpeaker',
+            http_method='GET', name='getFeaturedSpeaker')
+    def getFeaturedSpeaker(self, request):
+        """Return Announcement from memcache."""
+        return StringMessage(data=memcache.get("FEATURED SPEAKERS") or "")
+
+
 
 
 # - - - Registration - - - - - - - - - - - - - - - - - - - -

@@ -72,11 +72,11 @@ class ConferenceForm(messages.Message):
     organizerUserId = messages.StringField(3)
     topics          = messages.StringField(4, repeated=True)
     city            = messages.StringField(5)
-    startDate       = messages.StringField(6) #DateTimeField()
+    startDate       = messages.StringField(6) 
     month           = messages.IntegerField(7, variant=messages.Variant.INT32)
     maxAttendees    = messages.IntegerField(8, variant=messages.Variant.INT32)
     seatsAvailable  = messages.IntegerField(9, variant=messages.Variant.INT32)
-    endDate         = messages.StringField(10) #DateTimeField()
+    endDate         = messages.StringField(10) 
     websafeKey      = messages.StringField(11)
     organizerDisplayName = messages.StringField(12)
 
@@ -133,6 +133,7 @@ class Session(ndb.Model):
     #session_type    = ndb.StringProperty(default='LECTURE')
     session_type    = msgprop.EnumProperty(SessionType, indexed=True)
     websafeConferenceKey = ndb.StringProperty()
+    websafeSessionKey = ndb.StringProperty()
 
 class SessionForm(messages.Message):
     """SessionForm -- Session outbound form message"""
@@ -144,6 +145,8 @@ class SessionForm(messages.Message):
     startTime       = messages.StringField(6)
     session_type    = messages.EnumField(SessionType, 7)
     websafeConferenceKey = messages.StringField(8)
+    websafeSessionKey = messages.StringField(9)
+
 
 class SessionForms(messages.Message):
     """SessionForms -- multiple Session outbound form message"""
